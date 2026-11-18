@@ -1,8 +1,10 @@
 import express from "express";
 import type { Pool } from "pg";
 import type { Clock } from "./clock";
+import { getUploadDir } from "./config";
 import { createPool } from "./db/pool";
 import { TaskRepository } from "./db/task-repository";
+import { ImageFileStore } from "./domain/image-files";
 import { TaskService } from "./domain/task-service";
 import { createTasksRouter } from "./http/tasks-router";
 import { errorHandler } from "./http/error-handler";
@@ -10,9 +12,14 @@ import { errorHandler } from "./http/error-handler";
 export type CreateAppOptions = {
   pool: Pool;
   clock: Clock;
+  uploadDir?: string;
 };
 
-export function createApp({ pool, clock }: CreateAppOptions): express.Application {
+export function createApp({
+  pool,
+  clock,
+  uploadDir = getUploadDir(),
+}: CreateAppOptions): express.Application {
   const app = express();
 
   app.use((req, res, next) => {
@@ -30,9 +37,11 @@ export function createApp({ pool, clock }: CreateAppOptions): express.Applicatio
   app.use(express.json({ limit: "100kb" }));
 
   const repo = new TaskRepository(pool);
-  const service = new TaskService(repo, clock);
+  const imageFiles = new ImageFileStore(uploadDir);
+  void imageFiles.ensureUploadDir();
+  const service = new TaskService(repo, clock, imageFiles);
 
-  app.use("/api", createTasksRouter(service));
+  app.use("/api", createTasksRouter(service, { uploadDir }));
   app.use(errorHandler);
 
   return app;

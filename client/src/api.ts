@@ -114,6 +114,11 @@ export async function updateTask(
   return data;
 }
 
+export async function getTask(id: string): Promise<Task> {
+  const { data } = await requestJson<Task>(`/api/tasks/${id}`);
+  return data;
+}
+
 export async function getStatusHistory(
   id: string,
 ): Promise<StatusHistoryResponse> {

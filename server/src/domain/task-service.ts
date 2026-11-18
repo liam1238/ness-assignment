@@ -1,20 +1,28 @@
 import { ZodError } from "zod";
+import fs from "fs/promises";
 import type { TaskRepository, TaskRow } from "../db/task-repository";
-import { mapTask } from "../db/task-repository";
+import { mapComment, mapTask, mapTaskImage } from "../db/task-repository";
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  ImageFileStore,
+} from "./image-files";
 import type { Clock } from "../clock";
 import { utcTodayString } from "../clock";
 import { compareDateStrings, parseCalendarDate } from "./dates";
 import {
   AppError,
+  imageNotFound,
   invalidTransition,
   notFound,
   validationError,
 } from "./errors";
 import type { PoolClient } from "pg";
 import {
+  createCommentSchema,
   createTaskSchema,
   listTasksQuerySchema,
   patchTaskSchema,
+  type CreateCommentInput,
   type CreateTaskInput,
   type PatchTaskInput,
 } from "../validation/task-schemas";
@@ -64,10 +72,21 @@ function validateStatusTransition(
   }
 }
 
+export type UploadedImageFile = {
+  storedName: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+const MAX_IMAGES_PER_TASK = 4;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
 export class TaskService {
   constructor(
     private readonly repo: TaskRepository,
     private readonly clock: Clock,
+    private readonly imageFiles: ImageFileStore,
   ) {}
 
   async create(body: unknown) {
@@ -110,8 +129,10 @@ export class TaskService {
 
   async delete(id: string) {
     assertUuid(id);
+    const storedNames = await this.repo.listStoredNamesForTask(id);
     const deleted = await this.repo.deleteById(id);
     if (!deleted) throw notFound();
+    await this.imageFiles.deleteFiles(storedNames);
   }
 
   async list(query: Record<string, unknown>) {
@@ -181,6 +202,132 @@ export class TaskService {
         changedAt: r.changed_at.toISOString(),
       })),
     };
+  }
+
+  async listComments(taskId: string) {
+    assertUuid(taskId);
+    const task = await this.repo.getById(taskId);
+    if (!task) throw notFound();
+    const rows = await this.repo.listComments(taskId);
+    return {
+      data: rows.map(mapComment),
+    };
+  }
+
+  async createComment(taskId: string, body: unknown) {
+    assertUuid(taskId);
+    let input: CreateCommentInput;
+    try {
+      input = createCommentSchema.parse(body);
+    } catch (e) {
+      if (e instanceof ZodError) throw zodToValidation(e);
+      throw e;
+    }
+
+    const task = await this.repo.getById(taskId);
+    if (!task) throw notFound();
+
+    const row = await this.repo.insertComment({
+      task_id: taskId,
+      body: input.body,
+      author: input.author ?? null,
+    });
+    return mapComment(row);
+  }
+
+  private imageUrl(taskId: string, imageId: string): string {
+    return `/api/tasks/${taskId}/images/${imageId}`;
+  }
+
+  async listImages(taskId: string) {
+    assertUuid(taskId);
+    const task = await this.repo.getById(taskId);
+    if (!task) throw notFound();
+    const rows = await this.repo.listImages(taskId);
+    return {
+      data: rows.map((row) => ({
+        ...mapTaskImage(row),
+        url: this.imageUrl(taskId, row.id),
+      })),
+    };
+  }
+
+  async createImage(taskId: string, file: UploadedImageFile | undefined) {
+    assertUuid(taskId);
+    if (!file) {
+      throw validationError("Request validation failed", [
+        { field: "image", message: "Image file is required" },
+      ]);
+    }
+
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimeType)) {
+      await this.imageFiles.deleteFile(file.storedName);
+      throw validationError("Request validation failed", [
+        {
+          field: "image",
+          message: "Only JPEG, PNG, WebP, and GIF images are allowed",
+        },
+      ]);
+    }
+
+    if (file.sizeBytes > MAX_IMAGE_BYTES) {
+      await this.imageFiles.deleteFile(file.storedName);
+      throw validationError("Request validation failed", [
+        {
+          field: "image",
+          message: "Image must be 2 MB or smaller",
+        },
+      ]);
+    }
+
+    const task = await this.repo.getById(taskId);
+    if (!task) {
+      await this.imageFiles.deleteFile(file.storedName);
+      throw notFound();
+    }
+
+    const count = await this.repo.countImagesForTask(taskId);
+    if (count >= MAX_IMAGES_PER_TASK) {
+      await this.imageFiles.deleteFile(file.storedName);
+      throw validationError("Request validation failed", [
+        {
+          field: "image",
+          message: "A task can have at most four images",
+        },
+      ]);
+    }
+
+    try {
+      const row = await this.repo.insertImage({
+        task_id: taskId,
+        stored_name: file.storedName,
+        original_name: file.originalName,
+        mime_type: file.mimeType,
+        size_bytes: file.sizeBytes,
+      });
+      return {
+        ...mapTaskImage(row),
+        url: this.imageUrl(taskId, row.id),
+      };
+    } catch (e) {
+      await this.imageFiles.deleteFile(file.storedName);
+      throw e;
+    }
+  }
+
+  async readImageFile(taskId: string, imageId: string) {
+    assertUuid(taskId);
+    assertUuid(imageId);
+    const row = await this.repo.getImageById(taskId, imageId);
+    if (!row) throw imageNotFound();
+    const filePath = this.imageFiles.resolveStoredPath(row.stored_name);
+    if (!filePath) throw imageNotFound();
+    try {
+      await fs.access(filePath);
+    } catch {
+      throw imageNotFound();
+    }
+    return { filePath, mimeType: row.mime_type };
   }
 }
 

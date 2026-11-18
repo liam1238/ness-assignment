@@ -1,8 +1,24 @@
 # Team tasks
 
-A small task board for a software team: create and edit work, filter and page through it, and keep a history of real status changes.
+A small task board for a software team: create and edit work, filter and page through it, open a task for full detail, leave comments, attach images, and keep a history of real status changes.
+
+Clicking a list row opens a detail dialog that loads `GET /api/tasks/:id`. The dialog shows description, status, priority, assignee, due date, created and updated timestamps, read-only status history, and comments. The Images block appears only when the task has at least one image; there is no empty-state message. Comments can be added from the detail dialog (body up to 1000 characters, optional author). The edit dialog shows read-only status history. The create dialog does not, because a new task has no history yet. Images are added only while creating or editing a task: new tasks upload chosen files after save; existing tasks use the edit dialog. Limits are four images per task, JPEG/PNG/WebP/GIF, 2 MB each. Deleting a task removes its comments, status history, and uploaded image files.
+
+The list requests ten tasks per page with filters, sort, and pagination. From 721px up, tasks render in a table; at 720px and below, each task is a card.
 
 The supported runtime is **Node.js 26.13.1**, Active LTS (Lithium). `.nvmrc` pins that version. Both packages accept `>=26.13.1 <27`. Node 25 is not an LTS release and is not the runtime this project is set up for.
+
+## Screenshots
+
+![Desktop list with filters, table, and Page 1 of 2 pagination](docs/screenshots/list-desktop.png)
+
+![Task detail dialog with description, status, images, and status history](docs/screenshots/task-detail.png)
+
+![Edit task dialog with fields, read-only status history, and image upload](docs/screenshots/edit-task.png)
+
+![Mobile card layout at narrow width](docs/screenshots/mobile-cards.png)
+
+[UI walkthrough: search, filters, sort, task detail, next page, mobile layout, create, and edit](docs/screenshots/demo.mp4)
 
 ## Stack
 
@@ -11,7 +27,7 @@ The supported runtime is **Node.js 26.13.1**, Active LTS (Lithium). `.nvmrc` pin
 - PostgreSQL 16, accessed with `pg` and parameterized SQL.
 - Vitest and Supertest against a real `tasks_test` database.
 
-Express is enough for six routes and keeps validation, rules, and SQL in separate modules. NestJS would spend this timebox on framework structure. Parameterized SQL makes the status update explicit: lock the row, validate it, update it, and insert at most one history row in the same transaction. An ORM would hide that sequence. PostgreSQL is the database because that transaction and row lock are the behavior under test. SQLite would remove Docker and weaken the concurrency check.
+Express is enough for a small REST API over tasks, status history, comments, and images, and it keeps validation, rules, and SQL in separate modules. NestJS would spend this timebox on framework structure. Parameterized SQL makes the status update explicit: lock the row, validate it, update it, and insert at most one history row in the same transaction. An ORM would hide that sequence. PostgreSQL is the database because that transaction and row lock are the behavior under test. SQLite would remove Docker and weaken the concurrency check.
 
 TanStack Query replaces hand-written cache invalidation. MUI supplies the layout, dialogs, and table. The theme is a light task tool: Inter, a deep blue accent, and hairline borders.
 
@@ -105,6 +121,7 @@ There is no ESLint config. TypeScript strict mode is the static check.
 | `DATABASE_URL` | Development connection string, database name `tasks`. |
 | `TEST_DATABASE_URL` | Test connection string, database name `tasks_test`. Required for tests. Never defaulted from `DATABASE_URL`. |
 | `API_PORT` | API listen port. Example: `3001`. |
+| `UPLOAD_DIR` | Filesystem directory for task image uploads. Example: `server/uploads` (relative to the repository root). |
 
 The example password is for a local database only. Do not reuse it anywhere else, and do not commit `.env`.
 
@@ -138,7 +155,7 @@ Due dates are strict `YYYY-MM-DD` calendar dates. "Today" is the UTC date of the
 
 ### History lifetime and the row lock
 
-Delete is a hard delete. `task_status_history.task_id` references `tasks(id) ON DELETE CASCADE`. Status history exists for the lifetime of the task and is removed with it. A history request after deletion returns `404`.
+Delete is a hard delete. `task_status_history`, `task_comments`, and `task_images` reference `tasks(id) ON DELETE CASCADE`. Status history, comments, and image rows are removed with the task; the service also deletes image files on disk. A history, comment, or image request after deletion returns `404`.
 
 The update path takes `SELECT … FOR UPDATE` on the task, validates the locked row, updates the task, and inserts a history row only when the status changed. The lock serializes concurrent status changes. The second transaction sees the status committed by the first, so two attempts to apply the same change produce one history row. That protects history consistency.
 
@@ -196,7 +213,7 @@ GET /api/tasks?status=TODO&priority=HIGH&q=ship&sort=dueDate&order=asc&page=1&pa
 
 `q` is a case-insensitive literal title substring. `\`, `%`, and `_` are escaped and the pattern is bound as a parameter: `title ILIKE $n ESCAPE '\'`. Those characters are not wildcards.
 
-Other routes: `GET /api/tasks/:id`, `PATCH /api/tasks/:id`, `DELETE /api/tasks/:id` (`204`, empty body), `GET /api/tasks/:id/status-history`.
+Other routes: `GET /api/tasks/:id`, `PATCH /api/tasks/:id`, `DELETE /api/tasks/:id` (`204`, empty body), `GET /api/tasks/:id/status-history`, `GET /api/tasks/:id/comments`, `POST /api/tasks/:id/comments`, `GET /api/tasks/:id/images`, `POST /api/tasks/:id/images`, and `GET /api/tasks/:id/images/:imageId`. A comment has a required body of up to 1000 characters and an optional author. Deleting a task deletes its comments, status history, and image files. A task can have up to four images (JPEG, PNG, WebP, or GIF), each up to 2 MB.
 
 History items are `{ id, taskId, previousStatus, newStatus, changedAt }`, oldest first. No changes yet returns `{ "data": [] }`.
 
@@ -229,9 +246,9 @@ The list query counts and pages in the application. That is correct at this size
 ## Known limitations
 
 - No version column, so stale clients can overwrite each other's non-status edits.
-- Deleting a task deletes its history.
+- Deleting a task deletes its history, comments, and image files.
 - No authentication or team boundary.
-- The edit form shows status history as a read-only list. It cannot be edited there.
+- Status history is read-only in the detail dialog and in the edit dialog.
 - No rate limiting, structured request logs, or deployment config.
 
 ## With more time
@@ -240,7 +257,7 @@ Add the version check described below, show a conflict when a stale edit loses, 
 
 ## Intentionally not implemented
 
-Authentication, teams, optimistic concurrency, multiple assignees, reopening a done task, Kanban, soft delete, Swagger UI, Playwright, ESLint, comments, attachments, and deployment.
+Authentication, teams, optimistic concurrency, multiple assignees, reopening a done task, Kanban, soft delete, Swagger UI, Playwright, ESLint, and deployment.
 
 ## Senior prompts
 
