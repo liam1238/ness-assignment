@@ -2,37 +2,35 @@
 
 Candidate: Liam Golan
 Date: 2026-11-18
-Repository / submission link: _placeholder — add the link when you submit_
-
-This report records what the tools actually did in this working session. Lines marked for you are blank on purpose. Replace the drafts only if they match what you want to say.
+Repository / submission link: https://github.com/liam1238/ness-assignment
 
 ## 1. Completion checklist
 
 - [x] The application starts using the documented steps. The API was started with `npm run dev` from `server` on Node 26.13.1, and the Vite dev server served the client at http://localhost:5173.
 - [x] The database can be initialized from a clean state. A new Compose volume created `tasks` and `tasks_test`, and `001_init.sql` applied to both.
 - [x] The core task create, read, update, and delete flows work. Checked in the browser and through the API.
-- [x] Filtering, searching, sorting, and pagination work together. Browser: title search, priority filter, and due-date descending order. Automated tests also cover combined filters, totals, and a valid page past the end. The browser smoke had one page of data, so the Previous/Next buttons were disabled rather than walked across multiple pages.
+- [x] Filtering, searching, sorting, and pagination work together. Automated tests cover combined filters, totals, and a valid page past the end. An early browser check had a single page of tasks, so Previous and Next stayed disabled. A later check, after 18 demo tasks were added and the list page size became 10, showed 20 tasks as "Page 1 of 2 (20 tasks)". Next opened page 2.
 - [x] Validation and error states are demonstrated. A too-short title kept the form values. The first attempt also exposed a real bug, fixed before the successful create: an empty description was sent as `null` and rejected.
-- [x] Status history is persisted and retrievable. One `TODO` to `IN_PROGRESS` change produced one history row. After delete, the task and its history return 404.
-- [x] Automated tests run successfully. `npm test` in `server`: 30 passed, 0 failed (26 API tests, 4 guard tests), against Postgres 16 in Docker.
-- [x] No secrets, credentials, or personal data are committed. The only credentials are the local example user `tasks` / password `tasks` in `.env.example`. `.env` is gitignored. This folder was not made into a git commit.
+- [x] Status history is persisted and retrievable. One `TODO` to `IN_PROGRESS` change produced one history row. The edit dialog shows that history as a read-only list. After delete, the task and its history return 404.
+- [x] Automated tests run successfully. See the separate test result below. That run is not the same check as the MUI browser session.
+- [x] No secrets, credentials, or personal data are committed. The only credentials are the local example user `tasks` / password `tasks` in `.env.example`. `.env` is gitignored. Repository: https://github.com/liam1238/ness-assignment
 - [x] README and API documentation are included.
 
 ## 2. AI-use disclosure
 
 ### Which AI tools did you use, and for what tasks?
 
-Observed in this session:
-
-- Cursor Grok, as the lead, wrote the frozen contract, Compose file, test-database init script, environment example, README, and this report. It also integrated the two implementation branches, fixed the defects below, and ran the verification.
-- Cursor Composer (`composer-2.5-fast`) implemented `server/` (schema, API, and tests) and, in parallel, `client/` (the React table and forms).
+- Cursor Grok, as the lead, wrote the frozen contract, Compose file, test-database init script, environment example, README, and this report. It integrated the implementation work, fixed the defects below, and ran the verification.
+- Cursor Composer (`composer-2.5-fast`) implemented `server/` (schema, API, and tests) and, in parallel, the first `client/`.
 - A second Cursor Grok pass (`grok-4.7-xhigh-fast`) reviewed the integrated code and did not edit it. It reported no contract mismatch in the areas it was asked to check.
+- Cursor Composer (`composer-2.5-fast`) then created 18 demo tasks by posting them to the running API. The two tasks already in the database were left in place. The total became 20.
+- Cursor Composer (`composer-2.5-fast`) then restyled the client with MUI. Below 720px each task is a card. The edit dialog still shows status history as a read-only list.
 
 ### Give one example of a prompt that materially helped.
 
-The implementation agents were told to follow `docs/api-contract.md` and, before any test migration or truncate, abort unless `TEST_DATABASE_URL` names `tasks_test` and is not the development database. That constraint is what the guard and its four tests implement.
+“If Grok is handling implementation, start in Plan Mode. Present the architecture, API contract, agent assignments, and verification plan. Wait for my explicit approval before implementation.”
 
-Liam, replace this with a prompt of your own if you want the example to be one you wrote.
+This helped because I could review the architecture and assumptions before the backend and frontend agents started working in parallel. Both agents then implemented against the same API contract.
 
 ### Give one example where AI output was incorrect, incomplete, insecure, or unsuitable.
 
@@ -42,35 +40,22 @@ Two smaller misses, also fixed before handoff: `createClock()` with no argument 
 
 ### What did you change or reject, and why?
 
-Lead changes, recorded so you can decide what you stand behind:
-
-- Accepted `null` description and assignee on create, because a blank field should not be a 400.
-- Split the live clock from the fixed test clock.
-- Required both concurrent status updates to return 200.
-- Published Postgres on host port 5434. Port 5432 is a Postgres already installed on this machine, and 5433 is reserved by another local Docker project.
-- Changed the narrow layout from a clipped scrolling table to stacked rows after a 390px check cut columns off mid-word.
-
-Liam — what you changed or rejected, in your own words:
-
-________________________________________________________________________________
+I asked for a planning and approval step before implementation so I could review the design decisions and agent assignments. I also added a requirement for the test runner to fail before migrating or truncating anything unless it was explicitly pointed at the dedicated test database. The tests reset database state, so I wanted a misconfigured environment to fail before touching development data. The guard also refuses to run when that URL is the same database as development.
 
 ### How did you verify generated code?
 
-Commands actually run, and what they printed:
+These are separate checks.
 
-```bash
-nvm use   # Node v26.13.1
-docker compose up -d
-docker compose exec db pg_isready -U tasks -d tasks
-# both databases present: tasks, tasks_test
-cd server && npm ci && npm run migrate && npm run migrate:test && npm test
-cd server && npm run typecheck && npm run build
-cd client && npm ci && npm run typecheck && npm run build
+Automated tests, rerun on 18 Nov 2026 at 13:33 (UTC+2) with Node v26.13.1 against Postgres 16 in Docker on port 5434:
+
+```text
+Test Files  2 passed (2)
+Tests       30 passed (30)
 ```
 
-`npm test` result after the fixes, on Postgres 16 from Compose: `Test Files 2 passed (2)`, `Tests 30 passed (30)`.
+That is 26 API tests and 4 guard tests. This run was not part of the MUI browser session. The MUI change did not modify the server.
 
-Browser, at http://localhost:5173, against the API on port 3001:
+Browser, first pass, before the MUI restyle and before the 18 demo tasks:
 
 - Empty state: "No tasks yet."
 - Create with title `ab` kept the form and showed a validation error.
@@ -81,58 +66,41 @@ Browser, at http://localhost:5173, against the API on port 3001:
 - Due date descending listed 2026-11-25, then 2026-11-20.
 - Edit offered only To do and In progress. Saving moved "Ship task API" to In progress.
 - `GET /api/tasks/ec432427-fa47-4616-a322-5c32f13187ef/status-history` returned one row, `TODO` to `IN_PROGRESS`.
-- Cancel on delete left the task. Confirm delete removed "Write the README". The list showed "Task deleted" and one remaining task.
+- Cancel on delete left the task. Confirm delete removed "Write the README".
 - `GET` of the deleted id, and of its history, both returned 404 `Task not found`.
-- At 390px the row showed title, status, priority, assignee, due date, and actions without clipping. At a wide viewport the filters sat in a row and the data was a table.
+- At 390px the fields were readable. That pass still used a stacked row, not the later cards.
 
-The independent review did not re-run the tests. It read the code and reported no mismatch with the contract in the areas above.
+Browser, after the MUI restyle, at http://localhost:5173:
+
+- The list showed "Page 1 of 2 (20 tasks)", 10 tasks on the page, sorted by due date ascending.
+- Next opened page 2 of 2. The first row there was "Add audit log export", due 2026-11-24. The last was "Load-test 100k task list", due 2026-12-16.
+- At 390px each task was a card with its title, status, due date, assignee, and Edit and Delete actions.
+- Edit on "Ship task API" showed a read-only status history entry: "To do to In progress". A task with no status change showed "No status changes yet."
+
+The independent review did not re-run the tests. It read the code and reported no mismatch with the contract in the areas it checked.
 
 ### Which part of the solution did you design or implement most independently?
 
-Liam:
-
-________________________________________________________________________________
+My main contribution was shaping the implementation plan and deciding what belonged in the submission. I set up the workflow with Grok coordinating the work and Composer agents owning the backend and frontend separately. I reviewed the proposed API contract, business rules, and verification plan before giving the agents the go-ahead. The agents implemented the code, and the Grok lead integrated and verified it.
 
 ### What would you ask AI to help with next, and what would you review yourself?
 
-Liam:
-
-________________________________________________________________________________
+I would ask AI to implement optimistic concurrency and add an integration test with two clients editing the same version of a task. I would review the database update condition, the API response when a version is stale, and the UI behavior when a conflict occurs. I would pay particular attention to whether the form preserves the user's unsaved changes so they can resolve the conflict.
 
 ## 3. Candidate self-review
 
-Drafts below describe the code that was submitted. Confirm, rewrite, or delete them.
-
 ### What is the strongest engineering decision in your solution?
 
-Draft: The status update locks the current row and writes the task and at most one history row in the same transaction. That is separate from lost updates, which still need a version check.
+The status change and its history entry are written in a single database transaction. The transaction locks the task row and checks the transition against the current stored status. If two requests ask for the same transition, the second sees that the status has already changed and adds no duplicate history entry.
 
 ### What is the largest known weakness or risk?
 
-Draft: Delete removes history with the task, and two stale clients can still overwrite each other's title, priority, assignee, or due date. There is no version column.
+The API has no way to detect that an edit was based on an older version of a task. If two people change the same field from stale forms, the later save can overwrite the earlier one without either user being told. The row lock keeps status history consistent, but it does not detect stale edits.
 
 ### What would you improve with another two hours?
 
-Draft: Add the version check and return 409 with the current task. Show status history on the edit form. Add a request log with the task id and the columns that changed.
+I would add a task version and require the client to send the version it originally loaded when saving. The API would reject stale edits with 409 Conflict. The UI would keep the draft and let the user reload the latest task before deciding what to reapply. I would add an integration test to verify that a stale request leaves both the task and its history intact.
 
 ### Which requirement did you interpret or simplify, and what assumption did you make?
 
-Draft: Description and assignee are optional even though create lists them beside the required fields. Status may be any allowed value on create, and the `TODO → IN_PROGRESS → DONE` chain applies only to updates. Reopening is not supported. History lasts only as long as the task.
-
-Liam — your own answers:
-
-Strongest decision:
-
-________________________________________________________________________________
-
-Largest weakness:
-
-________________________________________________________________________________
-
-Two more hours:
-
-________________________________________________________________________________
-
-Interpreted requirement:
-
-________________________________________________________________________________
+I treated the due date as a calendar date and used UTC to define "today." The API rejects a past due date when a task is created or when its due date changes. An overdue task can still be edited without changing its due date. This lets the team update the status or assignee of late work without moving the deadline just to save the edit.

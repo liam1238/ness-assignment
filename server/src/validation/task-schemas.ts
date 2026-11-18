@@ -148,6 +148,47 @@ export const listTasksQuerySchema = z
   })
   .strip();
 
+export const createCommentSchema = z
+  .object({
+    body: z.string().transform((s) => s.trim()),
+    author: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((v) => {
+        if (v === undefined || v === null) return null;
+        const t = v.trim();
+        return t === "" ? null : t;
+      }),
+  })
+  .strip()
+  .superRefine((data, ctx) => {
+    if (data.body.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["body"],
+        message: "Comment body is required",
+      });
+    }
+    if (data.body.length > 1000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["body"],
+        message: "Comment body must be at most 1000 characters",
+      });
+    }
+    if (data.author !== null && data.author !== undefined) {
+      if (data.author.length > 80) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["author"],
+          message: "Author must be at most 80 characters",
+        });
+      }
+    }
+  });
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type PatchTaskInput = z.infer<typeof patchTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;

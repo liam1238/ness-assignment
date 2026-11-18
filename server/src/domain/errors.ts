@@ -22,6 +22,9 @@ export class AppError extends Error {
 export const notFound = () =>
   new AppError(404, "NOT_FOUND", "Task not found");
 
+export const imageNotFound = () =>
+  new AppError(404, "NOT_FOUND", "Image not found");
+
 export const validationError = (
   message = "Request validation failed",
   details?: FieldDetail[],

@@ -1,6 +1,5 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -8,17 +7,30 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
+import type { KeyboardEvent } from "react";
 import type { Task } from "../types";
+import { TaskCardList } from "./TaskCardList";
 import { PriorityChip, StatusChip } from "./StatusPriorityChips";
 
 interface TaskTableProps {
   tasks: Task[];
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
+  onOpen: (task: Task) => void;
 }
 
-export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
+function handleRowKeyDown(
+  event: KeyboardEvent<HTMLTableRowElement>,
+  task: Task,
+  onOpen: (task: Task) => void,
+) {
+  if (event.key === "Enter" && event.target === event.currentTarget) {
+    event.preventDefault();
+    onOpen(task);
+  }
+}
+
+export function TaskTable({ tasks, onEdit, onDelete, onOpen }: TaskTableProps) {
   return (
     <>
       <TableContainer component={Box} className="task-table-desktop">
@@ -37,7 +49,15 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
           </TableHead>
           <TableBody>
             {tasks.map((task) => (
-              <TableRow key={task.id} data-testid="task-row" hover>
+              <TableRow
+                key={task.id}
+                data-testid="task-row"
+                hover
+                tabIndex={0}
+                onClick={() => onOpen(task)}
+                onKeyDown={(event) => handleRowKeyDown(event, task, onOpen)}
+                sx={{ cursor: "pointer" }}
+              >
                 <TableCell
                   sx={{
                     fontWeight: 500,
@@ -57,7 +77,7 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
                   {task.assignee ?? "—"}
                 </TableCell>
                 <TableCell sx={{ whiteSpace: "nowrap" }}>{task.dueDate}</TableCell>
-                <TableCell align="right">
+                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                   <Stack
                     direction="row"
                     spacing={0.5}
@@ -67,7 +87,10 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
                       size="small"
                       variant="text"
                       data-testid="edit-task"
-                      onClick={() => onEdit(task)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(task);
+                      }}
                     >
                       Edit
                     </Button>
@@ -76,7 +99,10 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
                       variant="text"
                       color="error"
                       data-testid="delete-task"
-                      onClick={() => onDelete(task)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(task);
+                      }}
                     >
                       Delete
                     </Button>
@@ -88,81 +114,12 @@ export function TaskTable({ tasks, onEdit, onDelete }: TaskTableProps) {
         </Table>
       </TableContainer>
 
-      <Stack spacing={1.5} className="task-cards-mobile">
-        {tasks.map((task) => (
-          <Paper
-            key={task.id}
-            variant="outlined"
-            data-testid="task-row"
-            className="task-card-row"
-            sx={{
-              p: 1.5,
-              borderRadius: "11px",
-              borderColor: "divider",
-            }}
-          >
-            <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
-              {task.title}
-            </Typography>
-            <Stack
-              direction="row"
-              spacing={0.75}
-              useFlexGap
-              sx={{ mb: 1, flexWrap: "wrap" }}
-            >
-              <StatusChip status={task.status} />
-              <PriorityChip priority={task.priority} />
-            </Stack>
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <Box>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ display: "block" }}
-                >
-                  Due {task.dueDate}
-                </Typography>
-                {task.assignee ? (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ display: "block" }}
-                  >
-                    {task.assignee}
-                  </Typography>
-                ) : null}
-              </Box>
-              <Stack direction="row" spacing={0.5}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  data-testid="edit-task"
-                  onClick={() => onEdit(task)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="error"
-                  data-testid="delete-task"
-                  onClick={() => onDelete(task)}
-                >
-                  Delete
-                </Button>
-              </Stack>
-            </Stack>
-          </Paper>
-        ))}
-      </Stack>
+      <TaskCardList
+        tasks={tasks}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onOpen={onOpen}
+      />
     </>
   );
 }

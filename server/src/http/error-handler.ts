@@ -1,9 +1,33 @@
 import type { ErrorRequestHandler } from "express";
+import { MulterError } from "multer";
 import { AppError } from "../domain/errors";
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (res.headersSent) {
     next(err);
+    return;
+  }
+
+  if (err instanceof MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Request validation failed",
+          details: [
+            { field: "image", message: "Image must be 2 MB or smaller" },
+          ],
+        },
+      });
+      return;
+    }
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Request validation failed",
+        details: [{ field: "image", message: err.message }],
+      },
+    });
     return;
   }
 

@@ -41,6 +41,42 @@ export type HistoryDto = {
   changedAt: string;
 };
 
+export type CommentRow = {
+  id: string;
+  task_id: string;
+  body: string;
+  author: string | null;
+  created_at: Date;
+};
+
+export type CommentDto = {
+  id: string;
+  taskId: string;
+  body: string;
+  author: string | null;
+  createdAt: string;
+};
+
+export type TaskImageRow = {
+  id: string;
+  task_id: string;
+  stored_name: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: Date;
+};
+
+export type TaskImageDto = {
+  id: string;
+  taskId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  url: string;
+};
+
 export function mapTask(row: TaskRow): TaskDto {
   return {
     id: row.id,
@@ -62,6 +98,27 @@ export function mapHistory(row: HistoryRow): HistoryDto {
     previousStatus: row.previous_status,
     newStatus: row.new_status,
     changedAt: row.changed_at.toISOString(),
+  };
+}
+
+export function mapComment(row: CommentRow): CommentDto {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    body: row.body,
+    author: row.author,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+export function mapTaskImage(row: TaskImageRow): Omit<TaskImageDto, "url"> {
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    originalName: row.original_name,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -194,6 +251,97 @@ export class TaskRepository {
       [taskId],
     );
     return Number(result.rows[0].count);
+  }
+
+  async listComments(taskId: string): Promise<CommentRow[]> {
+    const result = await this.pool.query<CommentRow>(
+      `SELECT * FROM task_comments
+       WHERE task_id = $1
+       ORDER BY created_at ASC, id ASC`,
+      [taskId],
+    );
+    return result.rows;
+  }
+
+  async insertComment(fields: {
+    task_id: string;
+    body: string;
+    author: string | null;
+  }): Promise<CommentRow> {
+    const result = await this.pool.query<CommentRow>(
+      `INSERT INTO task_comments (task_id, body, author)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [fields.task_id, fields.body, fields.author],
+    );
+    return result.rows[0];
+  }
+
+  async countCommentsForTask(taskId: string): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM task_comments WHERE task_id = $1`,
+      [taskId],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  async listImages(taskId: string): Promise<TaskImageRow[]> {
+    const result = await this.pool.query<TaskImageRow>(
+      `SELECT * FROM task_images
+       WHERE task_id = $1
+       ORDER BY created_at ASC, id ASC`,
+      [taskId],
+    );
+    return result.rows;
+  }
+
+  async getImageById(
+    taskId: string,
+    imageId: string,
+  ): Promise<TaskImageRow | null> {
+    const result = await this.pool.query<TaskImageRow>(
+      `SELECT * FROM task_images WHERE task_id = $1 AND id = $2`,
+      [taskId, imageId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async insertImage(fields: {
+    task_id: string;
+    stored_name: string;
+    original_name: string;
+    mime_type: string;
+    size_bytes: number;
+  }): Promise<TaskImageRow> {
+    const result = await this.pool.query<TaskImageRow>(
+      `INSERT INTO task_images (task_id, stored_name, original_name, mime_type, size_bytes)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        fields.task_id,
+        fields.stored_name,
+        fields.original_name,
+        fields.mime_type,
+        fields.size_bytes,
+      ],
+    );
+    return result.rows[0];
+  }
+
+  async countImagesForTask(taskId: string): Promise<number> {
+    const result = await this.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM task_images WHERE task_id = $1`,
+      [taskId],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  async listStoredNamesForTask(taskId: string): Promise<string[]> {
+    const result = await this.pool.query<{ stored_name: string }>(
+      `SELECT stored_name FROM task_images WHERE task_id = $1`,
+      [taskId],
+    );
+    return result.rows.map((r) => r.stored_name);
   }
 
   async withLockedTask<T>(
