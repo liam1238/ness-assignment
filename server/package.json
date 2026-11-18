@@ -1,0 +1,32 @@
+{
+  "name": "tasks-api",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=26.13.1 <27"
+  },
+  "scripts": {
+    "dev": "node --env-file=../.env --import tsx src/index.ts",
+    "start": "node --env-file=../.env dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "node --env-file=../.env --import tsx src/db/migrate.ts",
+    "migrate:test": "node --env-file=../.env --import tsx src/db/migrate-test.ts",
+    "test": "node --env-file=../.env ./node_modules/vitest/vitest.mjs run"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
+  }
+}

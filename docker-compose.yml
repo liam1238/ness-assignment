@@ -1,0 +1,24 @@
+# Lead-owned. The API and tests run on the host and connect to the published port.
+name: team-tasks
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tasks}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tasks}
+      POSTGRES_DB: ${POSTGRES_DB:-tasks}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - team_tasks_data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tasks} -d ${POSTGRES_DB:-tasks}"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  team_tasks_data:

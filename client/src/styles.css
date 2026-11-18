@@ -1,0 +1,25 @@
+/* Complements MUI — responsive task cards below 720px */
+@media (max-width: 720px) {
+  .task-table-desktop {
+    display: none !important;
+  }
+
+  .task-cards-mobile {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 721px) {
+  .task-table-desktop {
+    display: block;
+  }
+
+  .task-cards-mobile {
+    display: none !important;
+  }
+}
+
+.task-card-row {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
